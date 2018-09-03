@@ -22,6 +22,9 @@ from math import atan, pi
 ser = serial.Serial('/dev/ttyUSB0', 9600)
 global_threshold=20
 
+def velocidade(v):
+    ser.write(str(v).encode())
+    ser.flush()
 def re():
     ser.write(str('-1').encode())
     ser.flush()
@@ -206,7 +209,7 @@ def angulo2(img):
            cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
            cv2.circle(img, (x1,y1), 5, (0, 255, 0), 1)
            cv2.circle(img, (x2,y2), 5, (0, 255, 0), 1)
-       cv2.imshow("Edges", edges)
+       #cv2.imshow("Edges", edges)
 
        #INICIO CALCULO DOS ANGULOS
 
@@ -236,7 +239,7 @@ def angulo2(img):
                 else:
                    a_acum_neg+=a
                    cont_neg+=1
-                print('***************\nCalculo: Radianos', anguloRad, 'Ângulo em graus', a)
+                #print('***************\nCalculo: Radianos', anguloRad, 'Ângulo em graus', a)
 
            if cont_pos>=cont_neg:
                 a_final=int(a_acum_pos/cont_pos)
@@ -245,10 +248,36 @@ def angulo2(img):
            print('***************\nÂngulo em graus', a_final,'\n***************')
        else:
            a_final=0
+           texto(img, 'Impossivel calcular', (10,40))
            print('\n***************\nImpossível calcular o angulo\n***************')
 
        #FIM DO CALCULOS DOS ANGULOS
+       texto(img, str(a_final), (10,20))
        return img, a_final
+
+def posicao_linha(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    meia_altura = int(gray.shape[0]/2)
+    largura = gray.shape[1]
+    linha = gray[meia_altura,:]
+    
+    ponto_medio = 0 # media dos indices onde a linha preta esta
+    qtde = 0
+    for i, v in enumerate(linha):
+      if(v<30): # threshold 30
+          ponto_medio+=i;
+          qtde+=1
+    tem_linha = True if qtde>5 else False # se nao tem ao menos 5 pixels retorn false
+    ponto_medio = 0 if qtde==0 else ponto_medio/qtde
+    print('Ponto Medio:', ponto_medio)
+    ponto_medio=int(ponto_medio)
+    cv2.circle(img, (ponto_medio, meia_altura), 5, (0, 255, 0), 1)
+    #calcula indicador negativo para esquerda e positivo para direita
+    indicador = ponto_medio-int(largura/2)
+    texto(img, str(ponto_medio), (10,20))
+    texto(img, str(indicador), (10,50))
+    return img, indicador, tem_linha
+
 
 try:
      from picamera.array import PiRGBArray
@@ -262,13 +291,16 @@ try:
       
      # allow the camera to warmup
      time.sleep(0.1)
-      
+
+     velocidade(65)
+     
      # capture frames from the camera
      for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
        # grab the raw NumPy array representing the image, then initialize the timestamp
        # and occupied/unoccupied text
        img = frame.array
-       img = img[::-1,::-1,::].copy()
+       img = img[::-1, ::-1, ::].copy()
+       img = img[60:180, 80:240].copy()
        
        #INICIO DO ALGORITMO DE RECONHECIMENTO
 
@@ -279,26 +311,57 @@ try:
        
        #FIM DO ALGORITMO DE RECONHECIMENTO
 
-       t1=time.time()
+       #t1=time.time()
        img1, a1 = angulo(img.copy())
-       t2=time.time()
-       img2, a2 = angulo2(img)
-       t3=time.time()
-       print('metodo 1:', a1, 'tempo', t2-t1, ' |  metodo 2:', a2,'tempo',t3-t2)
-
+       #t2=time.time()
+       img2, a2 = angulo2(img.copy())
+       #t3=time.time()
+       #print('metodo 1:', a1, 'tempo', t2-t1, ' |  metodo 2:', a2,'tempo',t3-t2)
+       #cv2.imshow("Frame1", img1)
 
        a=a2 #usando algortimo 2
-       #COMANDO OS MOTORES VIA SERIAL
-       if a>0:
-           direita() if a < 88 else frente()
-       else:
-           esquerda() if a > -88 else frente()
-       
 
+       img = frame.array
+       img = img[::-1, ::-1, ::].copy()
+       img3, a3, tem_linha = posicao_linha(img.copy())
        
+       #COMANDO OS MOTORES VIA SERIAL
+       #if a==0:
+       #    direita()
+       #elif a>0:
+       #    direita() if a < 88 else frente()
+       #else:
+       #    esquerda() if a > -88 else frente()
+
+       a=a3 
+       if a > 60:
+           direita()
+       elif a < -60:
+           esquerda() 
+       else:
+           if tem_linha:
+              frente()
+           else:
+              re()
+           
        # show the frame
-       cv2.imshow("Frame1", img1)
-       cv2.imshow("Frame2", img2)
+       window_name = "Auto1"
+       #cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
+       #cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+       cv2.imshow(window_name, img1) #converte para BGR para mostrar
+
+       # show the frame
+       window_name = "Auto2"
+       #cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
+       #cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+       cv2.imshow(window_name, img2) #converte para BGR para mostrar
+
+       # show the frame
+       window_name = "Auto3"
+       #cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
+       #cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+       cv2.imshow(window_name, img3) #converte para BGR para mostrar
+       
        key = cv2.waitKey(1) & 0xFF
        # clear the stream in preparation for the next frame
        rawCapture.truncate(0)
@@ -306,6 +369,12 @@ try:
        if key == ord("q"):
          cv2.destroyAllWindows()
          break
+
+       #pausa para testes
+       #time.sleep(0.1)
+       #parar()
+       #time.sleep(1.0)       
+       
 except ImportError:
      print('Não esta rodando em um Raspberry')
 
