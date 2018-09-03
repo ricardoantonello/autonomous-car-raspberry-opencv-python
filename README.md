@@ -1,4 +1,4 @@
-# Sensor para vagas de estacionamento com OpenCV e Python
+# Veículo Autônomo com OpenCV, Raspberry Pi 3, Arduíno e Python!
 
 Autores: Ricardo Antonello, Arildo Valmorbida Junior, Julia Valmorbida e Juliana Valmorbida.
 Contato: ricardo@antonello.com.br
